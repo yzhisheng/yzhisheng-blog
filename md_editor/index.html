@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head title="MD Editor">
+	<meta charset="utf-8" />
+	<link rel="stylesheet" href="css/editormd.min.css" />
+</head>
+<style>
+	html,
+	body {
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		background: #2c2827;
+	}
+
+	.editormd {
+		box-sizing: border-box;
+	}
+
+	dialog {
+		border: 2px solid #444;
+		border-radius: 10px;
+		padding: 20px;
+		width: 300px;
+	}
+
+	dialog form {
+		display: flex;
+		flex-direction: column;
+	}
+
+	input[type="text"] {
+		padding: 5px;
+		margin-bottom: 20px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		width: calc(100% - 10px);
+		/* 减去padding的宽度 */
+	}
+
+	/* 将按钮容器设置为flex，使按钮在同一行 */
+	.dialog-buttons {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	button {
+		padding: 5px 10px;
+		margin-left: 10px;
+		/* 在按钮之间添加空间 */
+		border: none;
+		border-radius: 5px;
+		background-color: #4CAF50;
+		color: white;
+		cursor: pointer;
+	}
+
+	button:hover {
+		background-color: #45a049;
+	}
+</style>
+
+<body>
+	<div id="editor">
+		<!-- Tips: Editor.md can auto append a `<textarea>` tag -->
+		<textarea style="display:none;">### Hello Editor.md !</textarea>
+	</div>
+	<dialog id="myDialog">
+		<form method="dialog">
+			<label for="inputField">文件绝对路径:</label>
+			<input type="text" id="inputField" name="inputField">
+			<!-- 按钮容器 -->
+			<div class="dialog-buttons">
+				<button type="button" value="cancel">Cancel</button>
+				<button type="button" id="confirmBtn" value="default">Confirm</button>
+			</div>
+		</form>
+	</dialog>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/editormd.js"></script>
+	<script type="text/javascript">
+		$(function () {
+			var dialog = document.getElementById('myDialog');
+			var filePath, fileName, finalFilePath;
+
+			// 初始化编辑器
+			var md_editor = editormd("editor", {
+				width: "100%",
+				height: "100%",
+				theme: 'dark',
+				previewTheme: 'default',
+				editorTheme: 'pastel-on-dark',
+				path: "/md_editor/lib/",
+				toolbarIcons: function () {
+					var icons = editormd.toolbarModes.full;
+					icons = icons.filter(function (i) {
+						return !['fullscreen', 'preview', 'emoji'].includes(i);
+					});
+					icons.push('|', 'load_md', 'download_md');
+					return icons;
+				},
+				toolbarCustomIcons: {
+					load_md: '<input type="file" id="my_file" accept=".md" onchange="md_file_changed()" style="display: none;"><li><a href="javascript:#" onclick="load_md_file()" title="load md" unselectable="on"><i class="fa fa-upload" name="load_md" unselectable="on"></i></a></li>',
+					download_md: '<li><a href="javascript:#" onclick="download_md_file()" title="Download md" unselectable="on"><i class="fa fa-download" name="download_md" unselectable="on"></i></a></li>', // 新增下载按钮
+				}
+			});
+
+			// 打开对话框
+			function openDialog() {
+				dialog.showModal();
+			}
+
+			// 关闭对话框
+			function closeDialog() {
+				dialog.close();
+			}
+
+			// 绑定Confirm按钮点击事件
+			$('#confirmBtn').click(function () {
+				filePath = $("#inputField").val();
+				localStorage.setItem("FILE_PATH", filePath);
+				console.log('文件绝对路径：', filePath);
+				finalFilePath = `${filePath}\\${fileName}`;
+				console.log("文件完整路径:", `${filePath}\\${fileName}`)
+				closeDialog();
+			});
+
+			// 绑定Cancel按钮点击事件
+			$('#cancel').click(function () {
+				closeDialog();
+			});
+
+			// 加载md文件
+			window.load_md_file = function () {
+				$('#my_file').click();
+			}
+
+			// 文件变化时处理
+			window.md_file_changed = function () {
+				var file = $('#my_file').prop('files')[0];
+				var reader = new FileReader();
+				reader.readAsText(file, "UTF-8");
+				reader.onload = function (e) {
+					var fileText = e.target.result;
+					md_editor.cm.replaceSelection(fileText);
+					// 手动设置文件绝对路径
+					fileName = file.name;
+					console.log("文件名称:", fileName);
+					//打开对话框
+					//openDialog();
+				}
+			}
+
+			// 新增下载Markdown文件的函数
+			window.download_md_file = function () {
+				var content = window.localStorage.getItem("FILE_CONTENT");
+				saveTextToFile(content, fileName);
+			};
+
+			// 定时器自动保存
+			setInterval(function () {
+
+				if (fileName !== "" && fileName !== null) {
+					console.log("当前文件内容已自动保存在浏览器...")
+					var fileContent = md_editor.cm.getValue();
+					//保存文件
+					window.localStorage.setItem("FILE_CONTENT", fileContent);
+				}
+			}, 10000);
+
+
+
+			// 函数：保存文本内容到文件
+			function saveTextToFile(text, filename) {
+				// 创建 Blob 对象
+				var blob = new Blob([text], { type: 'text/plain' });
+
+				// 创建一个指向该 Blob 对象的 URL
+				var fileUrl = URL.createObjectURL(blob);
+
+				// 创建一个临时的 a 标签用于下载
+				var downloadLink = document.createElement('a');
+				downloadLink.href = fileUrl;
+				downloadLink.download = filename; // 指定下载文件的名称
+
+				// 触发下载
+				document.body.appendChild(downloadLink);
+				downloadLink.click();
+				document.body.removeChild(downloadLink);
+
+				// 释放创建的 URL
+				URL.revokeObjectURL(fileUrl);
+			}
+		});
+	</script>
+</body>
+
+</html>
